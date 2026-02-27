@@ -14,6 +14,7 @@ const REJECTION_KEYWORDS: string[] = [
 ];
 
 let lastCheckedIdentifier: string | null = null;
+let checkIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function getEmailBody(): string | null {
   const selectors = [".a3s.aiL", ".a3s", ".ii.gt"];
@@ -41,7 +42,6 @@ function isRejection(text: string): boolean {
   return REJECTION_KEYWORDS.some((keyword) => text.includes(keyword));
 }
 
-// Fetch MP3 as blob and play via blob URL to bypass Gmail CSP
 async function playSound(): Promise<void> {
   try {
     const url = chrome.runtime.getURL("fahhh.mp3");
@@ -64,17 +64,16 @@ function checkEmail(): void {
   const body = getEmailBody();
   const subject = getEmailSubject();
 
-  console.log("[Rejected.exe] Checking...", {
-    hasBody: !!body,
-    hasSubject: !!subject,
-    bodyPreview: body?.slice(0, 80),
-  });
-
   if (!body) return;
 
   const identifier = `${subject ?? ""}::${body.slice(0, 120)}`;
+
+  // Skip if we already processed this exact email
   if (identifier === lastCheckedIdentifier) return;
   lastCheckedIdentifier = identifier;
+
+  // Stop polling once we've successfully read an email body
+  stopPolling();
 
   const fullText = `${subject ?? ""} ${body}`;
 
@@ -86,22 +85,53 @@ function checkEmail(): void {
   }
 }
 
-function scheduleChecks(): void {
-  checkEmail();
-  setTimeout(checkEmail, 500);
-  setTimeout(checkEmail, 1500);
-  setTimeout(checkEmail, 3000);
+function stopPolling(): void {
+  if (checkIntervalId !== null) {
+    clearInterval(checkIntervalId);
+    checkIntervalId = null;
+  }
+}
+
+function startPolling(): void {
+  stopPolling();
+  // Poll every 500ms for up to 10 seconds to wait for Gmail to render
+  let attempts = 0;
+  const maxAttempts = 20;
+
+  checkIntervalId = setInterval(() => {
+    attempts++;
+    checkEmail();
+
+    if (attempts >= maxAttempts) {
+      stopPolling();
+      console.log("[Rejected.exe] Max polling attempts reached, stopping.");
+    }
+  }, 500);
 }
 
 let lastUrl: string = location.href;
 
 const observer = new MutationObserver((): void => {
   const currentUrl = location.href;
+
   if (currentUrl !== lastUrl) {
+    // URL changed — definitely a new email
     lastUrl = currentUrl;
     lastCheckedIdentifier = null;
     console.log("[Rejected.exe] URL changed, scanning...");
-    scheduleChecks();
+    startPolling();
+  } else {
+    // URL same but DOM changed — Gmail might have loaded email content
+    // without changing URL (e.g. clicking same thread again)
+    const body = getEmailBody();
+    if (body) {
+      const subject = getEmailSubject();
+      const identifier = `${subject ?? ""}::${body.slice(0, 120)}`;
+      if (identifier !== lastCheckedIdentifier) {
+        console.log("[Rejected.exe] DOM changed with new email content, scanning...");
+        startPolling();
+      }
+    }
   }
 });
 
@@ -111,4 +141,4 @@ observer.observe(document.body, {
 });
 
 console.log("[Rejected.exe] Content script loaded on Gmail.");
-scheduleChecks();
+startPolling();

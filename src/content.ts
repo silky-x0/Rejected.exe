@@ -11,6 +11,21 @@ const REJECTION_KEYWORDS: string[] = [
   "we won't be moving forward",
   "thank you for your interest, however",
   "we've decided to pursue other candidates",
+  "we are unable to offer you",
+  "our decision",
+  "we appreciate your interest but",
+  "regret to inform you",
+  "this role has been filled",
+  "we cannot move forward",
+  "your application was not successful",
+  "we have chosen another candidate",
+  "the role has been filled",
+  "after further review",
+  "we appreciate the time you took",
+  "we do not have a suitable opening",
+  "we must pass at this time",
+  "we will not be moving ahead",
+  "thank you for applying, but",
 ];
 
 let lastCheckedIdentifier: string | null = null;

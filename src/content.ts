@@ -1,4 +1,4 @@
-import { findRejection } from "./detection";
+import { findRejection, isRejection } from "./detection";
 
 type Settings = {
   enabled: boolean;
@@ -133,11 +133,11 @@ function evaluateView(): void {
   if (!text || text === lastSeenText) return;
   lastSeenText = text;
 
-  const match = findRejection(text);
-  if (match.strong.length === 0 && match.weak.length < 2) return;
+  if (!isRejection(text)) return;
   if (playedForView) return;
 
   playedForView = true;
+  const match = findRejection(text);
   const phrases = [...match.strong, ...match.weak].join(", ");
   console.log(`[Rejected.exe] 💀 Rejection detected (${phrases})`);
 

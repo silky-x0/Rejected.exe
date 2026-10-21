@@ -1,3 +1,4 @@
+import { api } from "./api";
 import { findRejection, isRejection } from "./detection";
 
 type Settings = {
@@ -25,7 +26,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let evaluateScheduled = false;
 
 async function loadSettings(): Promise<void> {
-  const stored = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const stored = await api.storage.local.get(DEFAULT_SETTINGS);
   settings = {
     enabled: stored.enabled !== false,
     volume: typeof stored.volume === "number" ? clampVolume(stored.volume) : DEFAULT_SETTINGS.volume,
@@ -33,7 +34,7 @@ async function loadSettings(): Promise<void> {
 }
 
 function watchSettings(): void {
-  chrome.storage.onChanged.addListener((changes, areaName): void => {
+  api.storage.onChanged.addListener((changes, areaName): void => {
     if (areaName !== "local") return;
 
     if (typeof changes.enabled?.newValue === "boolean") {
@@ -145,17 +146,17 @@ function evaluateView(): void {
 }
 
 function triggerAlert(): void {
-  chrome.runtime.sendMessage({ type: "rejection-detected", volume: settings.volume }, (): void => {
-    // No receiver (extension reloading, worker asleep) -> play it ourselves.
-    if (chrome.runtime.lastError) {
+  void api.runtime
+    .sendMessage({ type: "rejection-detected", volume: settings.volume })
+    .catch((): void => {
+      // No receiver (extension reloading, worker asleep) -> play it ourselves.
       void playSoundLocally();
-    }
-  });
+    });
 }
 
 async function playSoundLocally(): Promise<void> {
   try {
-    const url = chrome.runtime.getURL("fahhh.mp3");
+    const url = api.runtime.getURL("fahhh.mp3");
     const response = await fetch(url);
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
@@ -168,7 +169,23 @@ async function playSoundLocally(): Promise<void> {
     console.log("[Rejected.exe] 🔊 Sound playing!");
   } catch (err) {
     console.error("[Rejected.exe] Couldn't play sound:", err);
+    // Tell the background so it can fall back to a desktop notification.
+    api.runtime.sendMessage({ type: "playback-failed" }).catch((): void => undefined);
   }
+}
+
+/**
+ * Firefox has no offscreen documents, so the background asks the page to play
+ * the sound instead. Chrome never sends this message.
+ */
+function watchPlaybackRequests(): void {
+  api.runtime.onMessage.addListener((message: unknown): void => {
+    const msg = message as { type?: string; volume?: number } | undefined;
+    if (!msg || msg.type !== "play-sound-locally") return;
+
+    if (typeof msg.volume === "number") settings.volume = clampVolume(msg.volume);
+    void playSoundLocally();
+  });
 }
 
 function scheduleEvaluate(): void {
@@ -234,6 +251,7 @@ function watchDom(): void {
 async function main(): Promise<void> {
   await loadSettings();
   watchSettings();
+  watchPlaybackRequests();
   watchNavigation();
   watchDom();
 

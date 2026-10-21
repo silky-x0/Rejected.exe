@@ -5,11 +5,15 @@
   "main": "index.js",
   "scripts": {
     "build": "webpack --mode production",
+    "build:firefox": "webpack --mode production --env browser=firefox",
     "dev": "webpack --mode development",
+    "dev:firefox": "webpack --mode development --env browser=firefox",
     "watch": "webpack --mode development --watch",
+    "watch:firefox": "webpack --mode development --env browser=firefox --watch",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/make-icons.mjs",
-    "package": "npm run build && node scripts/package.mjs"
+    "package": "npm run build && node scripts/package.mjs dist",
+    "package:firefox": "npm run build:firefox && node scripts/package.mjs dist-firefox"
   },
   "repository": {
     "type": "git",

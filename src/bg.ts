@@ -1,3 +1,5 @@
+import { api, supportsOffscreen } from "./api";
+
 const BADGE_COLOR = "#cc0000";
 const OFFSCREEN_URL = "offscreen.html";
 const OFFSCREEN_JUSTIFICATION = "Plays the rejection sound when a rejection email is detected.";
@@ -15,7 +17,7 @@ const DEFAULT_STATS = {
 let offscreenSetup: Promise<void> | null = null;
 
 async function readStats(): Promise<Stats> {
-  const stored = await chrome.storage.local.get(DEFAULT_STATS);
+  const stored = await api.storage.local.get(DEFAULT_STATS);
   return {
     rejections: typeof stored.rejections === "number" ? stored.rejections : 0,
     lastRejectionAt: typeof stored.lastRejectionAt === "number" ? stored.lastRejectionAt : null,
@@ -23,24 +25,24 @@ async function readStats(): Promise<Stats> {
 }
 
 async function writeStats(stats: Stats): Promise<void> {
-  await chrome.storage.local.set(stats);
+  await api.storage.local.set(stats);
 }
 
 async function refreshBadge(): Promise<void> {
   const stats = await readStats();
-  await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
-  await chrome.action.setBadgeText({
+  await api.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
+  await api.action.setBadgeText({
     text: stats.rejections > 0 ? String(Math.min(stats.rejections, 999)) : "",
   });
 }
 
 async function ensureOffscreenDocument(): Promise<void> {
-  if (await chrome.offscreen.hasDocument()) return;
+  if (await api.offscreen.hasDocument()) return;
 
-  offscreenSetup ??= chrome.offscreen
+  offscreenSetup ??= api.offscreen
     .createDocument({
       url: OFFSCREEN_URL,
-      reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+      reasons: [api.offscreen.Reason.AUDIO_PLAYBACK],
       justification: OFFSCREEN_JUSTIFICATION,
     })
     .finally((): void => {
@@ -50,11 +52,11 @@ async function ensureOffscreenDocument(): Promise<void> {
   await offscreenSetup;
 }
 
-/** Plays the sound from a hidden extension page (no autoplay restrictions). */
-async function playRejectionSound(volume: number | undefined): Promise<boolean> {
+/** Chrome only: plays the sound from a hidden extension page. */
+async function playInOffscreenDocument(volume: number | undefined): Promise<boolean> {
   try {
     await ensureOffscreenDocument();
-    await chrome.runtime.sendMessage({
+    await api.runtime.sendMessage({
       type: "play-sound",
       volume: typeof volume === "number" ? volume : 1,
     });
@@ -65,8 +67,22 @@ async function playRejectionSound(volume: number | undefined): Promise<boolean> 
   }
 }
 
+/** Firefox and other browsers without offscreen documents: the page plays it. */
+async function playInPage(tabId: number, volume: number | undefined): Promise<boolean> {
+  try {
+    await api.tabs.sendMessage(tabId, {
+      type: "play-sound-locally",
+      volume: typeof volume === "number" ? volume : 1,
+    });
+    return true;
+  } catch (err) {
+    console.warn("[Rejected.exe] Could not ask the page to play the sound:", err);
+    return false;
+  }
+}
+
 function notifyRejection(): void {
-  chrome.notifications.create(`rejection-${Date.now()}`, {
+  void api.notifications.create(`rejection-${Date.now()}`, {
     type: "basic",
     iconUrl: "icons/icon128.png",
     title: "Rejection detected 💀",
@@ -74,7 +90,10 @@ function notifyRejection(): void {
   });
 }
 
-async function handleRejection(volume: number | undefined): Promise<void> {
+async function handleRejection(
+  volume: number | undefined,
+  sender: chrome.runtime.MessageSender,
+): Promise<void> {
   const stats = await readStats();
   await writeStats({
     rejections: stats.rejections + 1,
@@ -82,25 +101,35 @@ async function handleRejection(volume: number | undefined): Promise<void> {
   });
   await refreshBadge();
 
-  const played = await playRejectionSound(volume);
-  if (!played) notifyRejection();
+  if (supportsOffscreen()) {
+    const played = await playInOffscreenDocument(volume);
+    if (played) return;
+  }
+
+  const tabId = sender.tab?.id;
+  if (typeof tabId === "number") {
+    const played = await playInPage(tabId, volume);
+    if (played) return;
+  }
+
+  notifyRejection();
 }
 
-chrome.runtime.onInstalled.addListener((): void => {
+api.runtime.onInstalled.addListener((): void => {
   console.log("Rejection Alert installed. May God have mercy on your inbox.");
   void refreshBadge();
 });
 
-chrome.runtime.onStartup.addListener((): void => {
+api.runtime.onStartup.addListener((): void => {
   void refreshBadge();
 });
 
-chrome.runtime.onMessage.addListener((message: unknown): void => {
+api.runtime.onMessage.addListener((message: unknown, sender): void => {
   const msg = message as { type?: string; volume?: number } | undefined;
   if (!msg || typeof msg.type !== "string") return;
 
   if (msg.type === "rejection-detected") {
-    void handleRejection(msg.volume);
+    void handleRejection(msg.volume, sender);
   } else if (msg.type === "playback-failed") {
     notifyRejection();
   } else if (msg.type === "stats-reset") {

@@ -1,6 +1,8 @@
 /**
- * Bundles the built extension into dist/rejection-alert.zip.
- * Run after `npm run build`.
+ * Bundles a built extension into <target>/rejection-alert.zip.
+ * Run after `npm run build` (or `npm run build:firefox`).
+ *
+ * Usage: node scripts/package.mjs [target-dir]   (default: dist)
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
@@ -8,23 +10,25 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const dist = join(root, "dist");
+const target = process.argv[2] ?? "dist";
+const dist = join(root, target);
 const output = join(dist, "rejection-alert.zip");
 
 const contents = [
   "manifest.json",
   "content.js",
   "background.js",
-  "offscreen.js",
-  "offscreen.html",
   "popup.js",
   "popup.html",
   "fahhh.mp3",
   "icons",
 ];
 
+// Firefox has no offscreen documents, so the page plays the sound instead.
+if (target !== "dist-firefox") contents.push("offscreen.js", "offscreen.html");
+
 if (!existsSync(join(dist, "manifest.json"))) {
-  console.error("dist/ has no build output - run `npm run build` first.");
+  console.error(`${target}/ has no build output - run the matching build first.`);
   process.exit(1);
 }
 

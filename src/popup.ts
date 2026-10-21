@@ -1,3 +1,5 @@
+import { api } from "./api";
+
 interface Settings {
   enabled: boolean;
   volume: number;
@@ -51,7 +53,7 @@ function renderSettings(settings: Settings): void {
 }
 
 async function load(): Promise<void> {
-  const stored = await chrome.storage.local.get(DEFAULTS);
+  const stored = await api.storage.local.get(DEFAULTS);
 
   renderSettings({
     enabled: stored.enabled !== false,
@@ -65,18 +67,18 @@ async function load(): Promise<void> {
 }
 
 enabledToggle.addEventListener("change", (): void => {
-  void chrome.storage.local.set({ enabled: enabledToggle.checked });
+  void api.storage.local.set({ enabled: enabledToggle.checked });
 });
 
 volumeSlider.addEventListener("input", (): void => {
   const volume = Number(volumeSlider.value) / 100;
   volumeValue.textContent = `${volumeSlider.value}%`;
-  void chrome.storage.local.set({ volume });
+  void api.storage.local.set({ volume });
 });
 
 testButton.addEventListener("click", (): void => {
   const volume = Number(volumeSlider.value) / 100;
-  const audio = new Audio(chrome.runtime.getURL("fahhh.mp3"));
+  const audio = new Audio(api.runtime.getURL("fahhh.mp3"));
   audio.volume = Math.min(Math.max(volume, 0), 1);
   audio.play().catch((err: Error) => {
     volumeValue.textContent = `⚠ ${err.message}`;
@@ -84,12 +86,12 @@ testButton.addEventListener("click", (): void => {
 });
 
 resetButton.addEventListener("click", (): void => {
-  void chrome.storage.local.set({ rejections: 0, lastRejectionAt: null });
-  void chrome.runtime.sendMessage({ type: "stats-reset" });
+  void api.storage.local.set({ rejections: 0, lastRejectionAt: null });
+  void api.runtime.sendMessage({ type: "stats-reset" });
   renderStats({ rejections: 0, lastRejectionAt: null });
 });
 
-chrome.storage.onChanged.addListener((changes, areaName): void => {
+api.storage.onChanged.addListener((changes, areaName): void => {
   if (areaName !== "local") return;
 
   if (changes.rejections || changes.lastRejectionAt) {

@@ -23,15 +23,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
-
-      - name: Package
+      - name: Build (Chrome)
         run: npm run package
 
-      - name: Upload extension
+      - name: Build (Firefox)
+        run: npm run package:firefox
+
+      - name: Upload Chrome extension
         uses: actions/upload-artifact@v4
         with:
-          name: rejection-alert-extension
+          name: rejection-alert-chrome
           path: dist/rejection-alert.zip
+          if-no-files-found: error
+
+      - name: Upload Firefox extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: rejection-alert-firefox
+          path: dist-firefox/rejection-alert.zip
           if-no-files-found: error

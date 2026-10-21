@@ -1,8 +1,13 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 
-module.exports = (env, argv) => {
-  const isProduction = (argv && argv.mode) === 'production';
+// `webpack --env browser=firefox` builds the Firefox variant: Firefox has no
+// extension service workers, so its manifest uses a background event page
+// (`background.scripts`) instead of `background.service_worker`.
+module.exports = (env = {}, argv = {}) => {
+  const isFirefox = env.browser === 'firefox';
+  const isProduction = argv.mode === 'production';
+  const outputDir = isFirefox ? 'dist-firefox' : 'dist';
 
   return {
     mode: isProduction ? 'production' : 'development',
@@ -14,7 +19,7 @@ module.exports = (env, argv) => {
       popup: './src/popup.ts',
     },
     output: {
-      path: path.resolve(__dirname, 'dist'),
+      path: path.resolve(__dirname, outputDir),
       filename: '[name].js',
     },
     module: {
@@ -32,7 +37,12 @@ module.exports = (env, argv) => {
     plugins: [
       new CopyPlugin({
         patterns: [
-          { from: 'manifest.json', to: '.' },
+          {
+            // Firefox gets its own manifest (event page instead of a service
+            // worker); both are written out as manifest.json.
+            from: isFirefox ? 'manifest.firefox.json' : 'manifest.json',
+            to: 'manifest.json',
+          },
           { from: 'public', to: '.' },
         ],
       }),

@@ -1,27 +1,40 @@
 {
-    "manifest_version": 3,
-    "name": "Rejection Sound Alert",
-    "version": "1.0",
-    "description": "Gets rejected? We make it worse.",
-    "permissions": ["storage", "tabs"],
-    "host_permissions": ["https://mail.google.com/*"],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["https://mail.google.com/*"],
-        "js": ["content.js"],
-        "run_at": "document_idle"
-      }
-    ],
-    "web_accessible_resources": [
-      {
-        "resources": ["fahhh.mp3"],
-        "matches": ["https://mail.google.com/*"]
-      }
-    ],
-    "action": {
-      "default_popup": "popup.html"
+  "manifest_version": 3,
+  "name": "Rejection Sound Alert",
+  "version": "1.1.0",
+  "description": "Gets rejected? We make it worse.",
+  "minimum_chrome_version": "109",
+  "permissions": ["storage", "offscreen", "notifications"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["fahhh.mp3"],
+      "matches": ["https://mail.google.com/*"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   }
+}
